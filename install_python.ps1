@@ -97,8 +97,10 @@ function Get-CPUArchitecture {
     # https://www.python.org/ftp/python/3.12.5/python-3.12.5-amd64.exe - 64-bit
     # https://www.python.org/ftp/python/3.12.5/python-3.12.5.exe - 32-bit
     if ($arch -eq 64) {
+        Write-Log "64-bit architecture detected."
         return "-amd64"
     } else {
+        Write-Log "32-bit architecture detected."
         return ""
     }
 }
@@ -159,7 +161,17 @@ function Install-Python {
 # Remove old versions of Python
 function Uninstall-OldVersions {
     param ([string]$pythonVersion)
-    (Get-WmiObject Win32_Product -Filter "Name = 'Python'").Uninstall()
+    $uninstallString = "python-$pythonVersion*"
+    $uninstallKeys = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like $uninstallString }
+    if ($uninstallKeys) {
+        foreach ($key in $uninstallKeys) {
+            $uninstallString = $key.PSChildName
+            Write-Log "Uninstalling: $uninstallString"
+            Start-Process "msiexec.exe" -ArgumentList "/x $uninstallString /quiet" -Wait -NoNewWindow
+        }
+    } else {
+        Write-Log "No old versions found to uninstall."
+    }
 }
 
 # ensure the script is running as admin
@@ -180,6 +192,12 @@ if ($version -notin $allowedVersions) {
 
 $currentVersion = Get-InstalledPythonVersion
 Write-Log "Currently installed Python version: $(if ($currentVersion) { $currentVersion } else { 'None' })"
+if ($reinstall -and $currentVersion) {
+    Write-Log "Reinstall flag set. Removing existing Python installation..."
+    Uninstall-OldVersions -pythonVersion $currentVersion
+    Write-Log "Existing Python installation removed."
+    $currentVersion = $null
+}
 
 if (Is-NewVersionHigher -installedVersion $currentVersion -newVersion $version) {
     if ($currentVersion) {
