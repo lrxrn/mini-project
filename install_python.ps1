@@ -3,7 +3,8 @@
 
 param (
     [string]$version = "3.10.11", # Default version as 3.10
-    [bool]$upgrade = $true  # Upgrade flag
+    [bool]$upgrade = $true,  # Upgrade flag
+    [bool]$reinstall = $false # Flag to reinstall python if already installed (Remove and download again)
 )
 
 # list of allowed versions
@@ -49,7 +50,7 @@ function Check-WindowsVersion {
 function Get-InstalledPythonVersion {
     try {
         # Try multiple possible Python commands
-        $pythonCommands = @("python3", "python", "py")
+        $pythonCommands = @("python")
         $pythonPath = $null
         
         foreach ($cmd in $pythonCommands) {
@@ -143,7 +144,7 @@ function Install-Python {
     
     Write-Log "Starting Python installation..."
     # ref: https://www.python.org/download/releases/2.5/msi/
-    Start-Process -FilePath $installerPath -ArgumentList "/quiet", "InstallAllUsers=1" -Wait -NoNewWindow
+    Start-Process -FilePath $installerPath -ArgumentList "/quiet", "InstallAllUsers=1", "AppendPath=1" -Wait -NoNewWindow
 
     # check installation was successful
     $installed = Get-InstalledPythonVersion
@@ -155,6 +156,12 @@ function Install-Python {
     }
 }
 
+# Remove old versions of Python
+function Uninstall-OldVersions {
+    param ([string]$pythonVersion)
+    (Get-WmiObject Win32_Product -Filter "Name = 'Python'").Uninstall()
+}
+
 # ensure the script is running as admin
 Ensure-Admin
 
@@ -163,6 +170,7 @@ Check-WindowsVersion
 
 # Main program logic starts here
 # start logging
+Write-Host "Logging into file: $logFile"
 Write-Log "===== Start install ====="
 
 if ($version -notin $allowedVersions) {
