@@ -2,13 +2,13 @@
 # Version: 1.1
 
 param (
-    [string]$version = "3.10.11"  # Default version as 3.10
+    [string]$version = "3.10.11", # Default version as 3.10
     [bool]$upgrade = $true  # Upgrade flag
 )
 
 # list of allowed versions
 # latest stable versions of 3.8, 3.9, 3.10, 3.11, 3.12 
-$allowedVersions = @("3.8.10", "3.9.13", "3.10.2", "3.11.9", "3.12.9")
+$allowedVersions = @("3.8.10", "3.9.13", "3.10.11", "3.11.9", "3.12.9")
 
 # log file in user's local temp directory
 $logFile = "$env:TEMP\python_install_log.txt"
@@ -104,8 +104,8 @@ function Get-CPUArchitecture {
 
 # function to check if the temp file exists and remove if it does
 function Remove-TempFile {
-    Write-Log "Checking if temp file exists from previous run..."
     param ([string]$filePath)
+    Write-Log "Checking if temp file exists from previous run..."
     if (Test-Path $filePath) {
         Write-Log "Removing temp installer file: $filePath"
         Remove-Item -Path $filePath -Force -ErrorAction SilentlyContinue
@@ -143,7 +143,7 @@ function Install-Python {
     
     Write-Log "Starting Python installation..."
     # ref: https://www.python.org/download/releases/2.5/msi/
-    Start-Process -FilePath $installerPath -ArgumentList "/qn", "ALLUSERS=1" -Wait -NoNewWindow
+    Start-Process -FilePath $installerPath -ArgumentList "/quiet", "InstallAllUsers=1" -Wait -NoNewWindow
 
     # check installation was successful
     $installed = Get-InstalledPythonVersion
