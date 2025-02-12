@@ -2,7 +2,7 @@
 # Version: 1.1
 
 param (
-    [string]$version = "3.10.11", # Default version as 3.10
+    [string]$version = "3.12.9", # Default version as 3.12
     [bool]$upgrade = $true,  # Upgrade flag
     [bool]$reinstall = $false # Flag to reinstall python if already installed (Remove and download again)
 )
@@ -159,21 +159,28 @@ function Install-Python {
     }
 }
 
-# Remove old versions of Python
-function Uninstall-OldVersions {
-    param ([string]$pythonVersion)
-    $uninstallString = "python-$pythonVersion*"
-    $uninstallKeys = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like $uninstallString }
+function Uninstall-AllPythonVersions {
+    # Search for Python installations
+    $uninstallString = "Python*"
+    # search registry keys for uninstall information
+    $uninstallKeys = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | 
+                     Where-Object { $_.DisplayName -like $uninstallString }
+
     if ($uninstallKeys) {
         foreach ($key in $uninstallKeys) {
-            $uninstallString = $key.PSChildName
-            Write-Log "Uninstalling: $uninstallString" -color "Gray"
-            Start-Process "msiexec.exe" -ArgumentList "/x $uninstallString /quiet" -Wait -NoNewWindow
+            # make sure DisplayName exists and is not null
+            if ($key.DisplayName) {
+                $pythonVersion = $key.DisplayName
+                Write-Log "Uninstalling: $pythonVersion" -color "Gray"
+                # Uninstalling the version using msiexec
+                Start-Process "msiexec.exe" -ArgumentList "/x $($key.PSChildName) /quiet" -Wait -NoNewWindow
+            }
         }
     } else {
-        Write-Log "No old versions found to uninstall."
+        Write-Log "No Python versions found to uninstall."
     }
 }
+
 
 # ensure the script is running as admin
 Ensure-Admin
@@ -183,7 +190,7 @@ Check-WindowsVersion
 
 # Main program logic starts here
 # start logging
-Write-Host "Logging into file: $logFile" -color "Gray"
+Write-Host "Logging into file: $logFile" -ForegroundColor "Gray"
 Write-Log "===== Start install ====="
 
 if ($version -notin $allowedVersions) {
@@ -194,8 +201,8 @@ if ($version -notin $allowedVersions) {
 $currentVersion = Get-InstalledPythonVersion
 Write-Log "Currently installed Python version: $(if ($currentVersion) { $currentVersion } else { 'None' })"
 if ($reinstall -and $currentVersion) {
-    Write-Log "Reinstall flag set. Removing existing Python installation..." -color "Yellow"
-    Uninstall-OldVersions -pythonVersion $currentVersion
+    Write-Log "Reinstall flag set. Checking for existing Python installations..." -color "Yellow"
+    Uninstall-AllPythonVersions
     Write-Log "Existing Python installation removed." -color "Gray"
     $currentVersion = $null
 }
