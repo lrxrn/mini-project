@@ -1,4 +1,4 @@
-# Example usage: .\install_python.ps1 -version 3.10.11 -upgrade $true
+# Example usage: .\install_python.ps1 -version 3.10.11 -upgrade $true -reinstall $false
 # Version: 1.1
 
 param (
@@ -17,18 +17,19 @@ $logFile = "$env:TEMP\python_install_log.txt"
 # log messages to file and console
 function Write-Log {
     param (
-        [string]$message
+        [string]$message,
+        [string]$color = "White"
     )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "$timestamp - $message"
-    Write-Host $logEntry
+    Write-Host $logEntry -ForegroundColor $color
     Add-Content -Path $logFile -Value $logEntry
 }
 
 # check for administrator privileges and restart script with elevated privileges if not already
 function Ensure-Admin {
     if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-        Write-Log "Script is not running as administrator. Restarting with elevated privileges..."
+        Write-Log "Script is not running as administrator. Restarting with elevated privileges..." -color "Yellow"
         Start-Process PowerShell -ArgumentList "-File `"$PSCommandPath`" -version `"$version`"" -Verb RunAs
         exit
     }
@@ -41,7 +42,7 @@ function Check-WindowsVersion {
     $minor = $os.Version.Split('.')[1]
 
     if ([int]$major -lt 6 -or ([int]$major -eq 6 -and [int]$minor -lt 2)) {
-        Write-Log "ERROR: Python $version is not supported on Windows 7 or earlier. Exiting..."
+        Write-Log "ERROR: Python $version is not supported on Windows 7 or earlier. Exiting..." -color "Red"
         exit 1
     }
 }
@@ -77,7 +78,7 @@ function Get-InstalledPythonVersion {
         }
         return $null
     } catch {
-        Write-Log "Error checking Python version: $_"
+        Write-Log "Error checking Python version: $_" -color "Red"
         return $null
     }
 }
@@ -97,10 +98,10 @@ function Get-CPUArchitecture {
     # https://www.python.org/ftp/python/3.12.5/python-3.12.5-amd64.exe - 64-bit
     # https://www.python.org/ftp/python/3.12.5/python-3.12.5.exe - 32-bit
     if ($arch -eq 64) {
-        Write-Log "64-bit architecture detected."
+        Write-Log "64-bit architecture detected." -color "Gray"
         return "-amd64"
     } else {
-        Write-Log "32-bit architecture detected."
+        Write-Log "32-bit architecture detected." -color "Gray"
         return ""
     }
 }
@@ -110,7 +111,7 @@ function Remove-TempFile {
     param ([string]$filePath)
     Write-Log "Checking if temp file exists from previous run..."
     if (Test-Path $filePath) {
-        Write-Log "Removing temp installer file: $filePath"
+        Write-Log "Removing temp installer file: $filePath" -color "Gray"
         Remove-Item -Path $filePath -Force -ErrorAction SilentlyContinue
     }
 }
@@ -132,11 +133,11 @@ function Download-PythonInstaller {
     Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -ErrorAction Stop
 
     if (!(Test-Path $installerPath)) {
-        Write-Log "Download failed!"
+        Write-Log "Download failed!" -color "Red"
         exit 1
     }
 
-    Write-Log "Download completed: $installerPath"
+    Write-Log "Download completed: $installerPath" -color "Green"
     return $installerPath
 }
 
@@ -151,9 +152,9 @@ function Install-Python {
     # check installation was successful
     $installed = Get-InstalledPythonVersion
     if ($installed) {
-        Write-Log "Python version $installed installed successfully!"
+        Write-Log "Python version $installed installed successfully!" -color "Green"
     } else {
-        Write-Log "Installation failed!"
+        Write-Log "Installation failed!" -color "Red"
         exit 1
     }
 }
@@ -166,7 +167,7 @@ function Uninstall-OldVersions {
     if ($uninstallKeys) {
         foreach ($key in $uninstallKeys) {
             $uninstallString = $key.PSChildName
-            Write-Log "Uninstalling: $uninstallString"
+            Write-Log "Uninstalling: $uninstallString" -color "Gray"
             Start-Process "msiexec.exe" -ArgumentList "/x $uninstallString /quiet" -Wait -NoNewWindow
         }
     } else {
@@ -182,40 +183,40 @@ Check-WindowsVersion
 
 # Main program logic starts here
 # start logging
-Write-Host "Logging into file: $logFile"
+Write-Host "Logging into file: $logFile" -color "Gray"
 Write-Log "===== Start install ====="
 
 if ($version -notin $allowedVersions) {
-    Write-Log "Invalid version provided! Allowed versions: $($allowedVersions -join ', ')"
+    Write-Log "Invalid version provided! Allowed versions: $($allowedVersions -join ', ')" -color "Red"
     exit 1
 }
 
 $currentVersion = Get-InstalledPythonVersion
 Write-Log "Currently installed Python version: $(if ($currentVersion) { $currentVersion } else { 'None' })"
 if ($reinstall -and $currentVersion) {
-    Write-Log "Reinstall flag set. Removing existing Python installation..."
+    Write-Log "Reinstall flag set. Removing existing Python installation..." -color "Yellow"
     Uninstall-OldVersions -pythonVersion $currentVersion
-    Write-Log "Existing Python installation removed."
+    Write-Log "Existing Python installation removed." -color "Gray"
     $currentVersion = $null
 }
 
 if (Is-NewVersionHigher -installedVersion $currentVersion -newVersion $version) {
     if ($currentVersion) {
         if ($upgrade) {
-            Write-Log "Upgrade flag set. Proceeding with upgrading from $currentVersion to $version..."
+            Write-Log "Upgrade flag set. Proceeding with upgrading from $currentVersion to $version..." -color "Gray"
         } else {
-            Write-Log "New version $version is available. But upgrade flag not set. Skipping installation..."
+            Write-Log "New version $version is available. But upgrade flag not set. Skipping upgrade..." -color "Yellow"
             exit 0
         }
     } else {
-        Write-Log "Python is not installed. Proceeding with installation of version $version..."
+        Write-Log "Python is not installed. Proceeding with installation of version $version..." -color "Yellow"
     }
     $installerPath = Download-PythonInstaller -pythonVersion $version
     Install-Python -installerPath $installerPath
     Remove-Item -Path $installerPath -Force -ErrorAction SilentlyContinue  # Cleanup and remove installer
-    Write-Log "Installer file removed: $installerPath"
+    Write-Log "Installer file removed: $installerPath" -color "Gray"
 } else {
-    Write-Log "Python is already up-to-date. No installation/ upgrading needed."
+    Write-Log "Python is already up-to-date. No installation/ upgrading needed." -color "Green"
 }
 
 Write-Log "===== Finish install ====="
